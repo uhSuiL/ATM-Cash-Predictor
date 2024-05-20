@@ -12,22 +12,19 @@ from torch import nn
 # h0 = torch.randn(num_layers, batch_size, 20)
 # output, hn = rnn(input, h0)
 class SimpleGRU(nn.Module):
-	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, h0: torch.tensor = None):
+	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True):
 		super().__init__()
 
 		self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_layer, batch_first=True)
 		self.normalizer = layer.Normalizer()
 		self.fc = nn.Linear(hidden_dim, output_dim)
-		self.h0 = nn.Parameter(torch.zeros(num_layer, hidden_dim)) if h0 is None else h0
+		self.h0_fc = nn.Linear(input_dim, hidden_dim) if train_h0 else nn.Identity()
 
-	def forward(self, time_series: torch.Tensor):
-		if len(time_series.shape) == 3:
-			batch_size = time_series.shape[0]
-			a = self.h0.expand(self.gru.num_layers, batch_size, self.gru.hidden_size).contiguous()
-			self.h0 = a
-
+	def forward(self, time_series: torch.Tensor, h0: torch.Tensor = None):
+		h0 = self.h0_fc(h0)
 		normed_time_series = self.normalizer.normalize(time_series)
-		output, hn = self.gru(normed_time_series, self.h0)
+
+		output, hn = self.gru(normed_time_series, h0)
 
 		output = self.fc(output)
 		output = self.normalizer.denormalize(output)
