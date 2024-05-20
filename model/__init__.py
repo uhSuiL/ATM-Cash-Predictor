@@ -26,6 +26,14 @@ class SimpleGRU(nn.Module):
 
 		output, hn = self.gru(normed_time_series, h0)
 
-		output = self.fc(output)
-		output = self.normalizer.denormalize(output)
-		return output
+		# output the last pred
+		if len(output.shape) == 3:  # (batch_size, num_steps, hidden_dim)
+			output = torch.unsqueeze(output[:, -1, :], dim=1)
+		elif len(output.shape) == 2:  # (num_steps, hidden_dim)
+			output = torch.unsqueeze(output[-1, :], dim=0)
+		else:
+			raise RuntimeError(f"Shape Illegal: {output.shape}")
+
+		pred = self.fc(output)
+		pred = self.normalizer.denormalize(pred)
+		return pred
