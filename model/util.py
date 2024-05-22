@@ -22,12 +22,6 @@ def train(
 		num_epoch: int,
 		save_dir: str  # save_domain/model_name/
 ):
-	# save_domain/model_name/datetime/
-	save_dir = os.path.join(save_dir, now.strftime('%Y-%m-%d-%H-%M'))
-	if not os.path.exists(save_dir):
-		os.makedirs(save_dir)
-		print(f'create dir to save training log: {save_dir}')
-
 	for e in tqdm(range(num_epoch)):
 		epoch_loss = []
 		for b, (X, y) in enumerate(train_loader):
@@ -42,18 +36,23 @@ def train(
 
 		epoch_loss = np.array(epoch_loss).mean()
 		epoch_valid_results = test(valid_loader, model, metrics, loss_fn).tolist()
-		log_train(e, model, epoch_loss, epoch_valid_results, log_dir=save_dir)
+		log_train(e, model, epoch_loss, epoch_valid_results, save_dir=save_dir)
 
 
-def log_train(epoch: int, model: nn.Module, loss, valid_results: list, log_dir: str):
-	valid_results  = [loss] + valid_results
-	with open(os.path.join(log_dir, f'epoch_{epoch}_metrics.csv'), mode='a', newline='') as f:
+def log_train(epoch: int, model: nn.Module, train_loss, valid_results: list, save_dir: str):
+	# save_domain/model_name/datetime/
+	save_dir = os.path.join(save_dir, now.strftime('%Y-%m-%d-%H-%M'))
+	if not os.path.exists(save_dir):
+		os.makedirs(save_dir)
+		print(f'create dir to save training log: {save_dir}')
+
+	with open(os.path.join(save_dir, f'epoch_{epoch}_metrics.csv'), mode='a', newline='') as f:
 		writer = csv.writer(f)
-		writer.writerow([epoch] + valid_results)
+		writer.writerow([epoch, train_loss] + valid_results)
 
-		print(f"Epoch {epoch} | loss: {loss: .4f}, metrics: {valid_results: .4f}")
+		print(f"Epoch {epoch} | train loss: {train_loss: .4f} | valid metrics: {valid_results}")
 
-	torch.save(model.state_dict(), os.path.join(log_dir, f'epoch_{epoch}_checkpoint.pth'))
+	torch.save(model.state_dict(), os.path.join(save_dir, f'epoch_{epoch}_checkpoint.pth'))
 
 
 @torch.no_grad()
