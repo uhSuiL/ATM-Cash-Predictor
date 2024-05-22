@@ -5,12 +5,12 @@ from datetime import datetime
 import numpy as np
 import seaborn as sns
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-
 
 now = datetime.now()
 
@@ -56,6 +56,31 @@ def log_train(epoch: int, model: nn.Module, train_loss, valid_results: list, sav
 		print(f"Epoch {epoch} | train loss: {train_loss: .4f} | valid metrics: {valid_results}")
 
 	torch.save(model.state_dict(), os.path.join(save_dir, f'epoch_{epoch}_checkpoint.pth'))
+
+
+def visualize_train(log_dir: str, metrics_names: list = None, *, v_lines: list = None, figsize: tuple = None) -> pd.DataFrame:
+	sns.set()
+
+	data = pd.read_csv(os.path.join(log_dir, 'train_log.csv'), header=None)
+
+	data = data.set_index(0, drop=True)  # Epoch num as index
+	if metrics_names is None:
+		metrics_names = [f'metrics_{i}' for i in range(data.shape[-1] - 1)]
+	data.columns = ['train_loss'] + metrics_names
+
+	data.plot(figsize=(16, 8) if figsize is None else figsize)
+
+	if v_lines is not None and len(v_lines) > 0:
+		for x in v_lines:
+			plt.axvline(x=x, linestyle='--')
+
+	return data
+
+
+def load_checkpoint(model: nn.Module, save_dir: str, date: str, epoch: int):
+	f_path = os.path.join(save_dir, date, f'epoch_{epoch}_checkpoint.pth')
+	state_dict = torch.load(f_path)
+	model.load_state_dict(state_dict)
 
 
 @torch.no_grad()
