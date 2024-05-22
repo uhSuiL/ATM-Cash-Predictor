@@ -18,10 +18,10 @@ class SimpleGRU(nn.Module):
 		self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_layer, batch_first=True)
 		self.normalizer = layer.Normalizer()
 		self.fc = nn.Linear(hidden_dim, output_dim)
-		self.h0_fc = nn.Linear(input_dim, hidden_dim) if train_h0 else nn.Identity()
+		self.h0_fc = nn.Linear(hidden_dim, hidden_dim) if train_h0 else nn.Identity()
 
-	def forward(self, time_series: torch.Tensor, h0: torch.Tensor = None):
-		h0 = self.h0_fc(h0)
+	def forward(self, time_series: torch.Tensor, h0: torch.tensor):
+		h0 = self.h0_fc(h0)  # (num_layer, batch_size, hidden_dim)
 		normed_time_series = self.normalizer.normalize(time_series)
 
 		output, hn = self.gru(normed_time_series, h0)
@@ -36,4 +36,4 @@ class SimpleGRU(nn.Module):
 
 		pred = self.fc(output)
 		pred = self.normalizer.denormalize(pred)
-		return pred
+		return torch.squeeze(pred)
