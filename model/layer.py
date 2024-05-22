@@ -23,10 +23,10 @@ class Normalizer:
 
 	@torch.no_grad()
 	def normalize(self, time_series: torch.tensor):
-		self.mean = time_series.mean(dim=self.dim)
-		self.std = time_series.std(dim=self.dim)
+		self.mean = time_series.mean(dim=self.dim, keepdim=True)
+		self.std = time_series.std(dim=self.dim, keepdim=True)
 		return (time_series - self.mean) / (self.std + self.epsilon)
 
-	@torch.no_grad()
+	# @torch.no_grad()
 	def denormalize(self, normed_time_series: torch.tensor):
 		return self.mean + (self.std + self.epsilon) * normed_time_series
