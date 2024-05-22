@@ -3,9 +3,12 @@ import csv
 from datetime import datetime
 
 import numpy as np
+import seaborn as sns
+import pandas as pd
+
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 
@@ -46,7 +49,7 @@ def log_train(epoch: int, model: nn.Module, train_loss, valid_results: list, sav
 		os.makedirs(save_dir)
 		print(f'create dir to save training log: {save_dir}')
 
-	with open(os.path.join(save_dir, f'epoch_{epoch}_metrics.csv'), mode='a', newline='') as f:
+	with open(os.path.join(save_dir, f'train_log.csv'), mode='a', newline='') as f:
 		writer = csv.writer(f)
 		writer.writerow([epoch, train_loss] + valid_results)
 
