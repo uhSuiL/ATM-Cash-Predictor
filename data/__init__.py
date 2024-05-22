@@ -1,11 +1,12 @@
 import pandas as pd
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 
 class SlidingWinDataset(Dataset):
 	def __init__(self, time_series: pd.DataFrame, sliding_win: int):
-		time_series =  time_series.to_numpy()
+		time_series = time_series.to_numpy(dtype=np.float32)
 
 		# sliding_win -> time_series length
 		# predict s[t] based on s[t-1]~s[t-1-win]
