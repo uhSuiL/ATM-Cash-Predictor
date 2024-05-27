@@ -37,3 +37,22 @@ class SimpleGRU(nn.Module):
 		pred = self.fc(output)
 		pred = self.normalizer.denormalize(pred)
 		return torch.squeeze(pred)
+
+
+class StrategicGRU(nn.Module):
+	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True):
+		super().__init__()
+		self.simple_gru = SimpleGRU(input_dim, hidden_dim, output_dim, num_layer, train_h0)
+		self.strategy_fc = nn.Linear(input_dim * 2, input_dim)
+		self.relu = nn.ReLU()
+
+	def forward(self, time_series: torch.Tensor, h0: torch.tensor):
+		if time_series.dim() == 2:
+			time_series = time_series.unsqueeze(dim=0)  # (batch_size=1, num_step, feature_dim)
+
+		demand = self.simple_gru(time_series, h0)  # (batch_size, input_dim)
+		replenish = self.strategy_fc(
+			torch.concat((demand, time_series[:, -1, :]), dim=-1)  # (batch_size, input_dim x 2)
+		)  # (batch_size, input_dim)
+		pred = self.relu(time_series[:, -1, :] + replenish - demand)
+		return pred  # (batch_size, input_dim)
