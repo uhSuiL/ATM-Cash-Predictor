@@ -52,5 +52,3 @@ class MovingAverage(nn.Module):
 
 		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
 		return X
-
-
