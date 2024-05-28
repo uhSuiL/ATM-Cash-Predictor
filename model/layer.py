@@ -30,3 +30,27 @@ class Normalizer:
 	# @torch.no_grad()
 	def denormalize(self, normed_time_series: torch.tensor):
 		return self.mean + (self.std + self.epsilon) * normed_time_series
+
+
+class MovingAverage(nn.Module):
+	def __init__(self, win_length: int, stride: int = 1):
+		super().__init__()
+		self.win_length = win_length
+		self.moving_avg = nn.AvgPool1d(kernel_size=win_length, stride=stride)
+
+	def forward(self, X: torch.Tensor):  # (batch_size, num_steps, num_features)
+		if X.dim() == 2:  # (num_steps, num_features)
+			X = torch.unsqueeze(X, dim=0)  # (1, num_steps, num_features)
+
+		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
+
+		# Keep sequence length
+		X = torch.concat([
+			X[:, :, : self.win_length - 1],
+			self.moving_avg(X)  # (batch_size, num_features, num_steps - (win_length - 1))
+		])  # (batch_size, num_features, num_steps)
+
+		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
+		return X
+
+
