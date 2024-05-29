@@ -40,10 +40,18 @@ class SimpleGRU(nn.Module):
 
 
 class StrategicGRU(nn.Module):
-	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True):
+	def __init__(
+			self,
+			input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True,
+			mlp_hidden_params: list = None,
+	):
 		super().__init__()
+		self.strategy_fc = nn.Linear(input_dim * 2, input_dim) if mlp_hidden_params is None \
+			else layer.MLP([input_dim * 2] + mlp_hidden_params + [input_dim])
+
 		self.simple_gru = SimpleGRU(input_dim, hidden_dim, output_dim, num_layer, train_h0)
-		self.strategy_fc = nn.Linear(input_dim * 2, input_dim)
+		# self.strategy_fc = nn.Linear(input_dim * 2, input_dim)
+		# self.strategy_mlp = layer.MLP([input_dim * 2] + mlp_hidden_params + [input_dim])
 		self.relu = nn.ReLU()
 
 	def forward(self, time_series: torch.Tensor, h0: torch.tensor):
