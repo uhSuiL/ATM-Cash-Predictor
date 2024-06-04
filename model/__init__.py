@@ -64,3 +64,20 @@ class StrategicGRU(nn.Module):
 		)  # (batch_size, input_dim)
 		pred = self.relu(time_series[:, -1, :] + replenish - demand)
 		return pred  # (batch_size, input_dim)
+
+
+class DLinear(nn.Module):
+	def __init__(self,
+				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
+				 ma_win_len: int, ma_stride: int = 1):
+		super().__init__()
+		self.num_pred_steps = num_pred_steps
+
+		self.normalizer = layer.Normalizer()
+		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, ma_win_len, ma_stride)
+
+	def forward(self, time_series: torch.Tensor):
+		normed_time_series = self.normalizer.normalize(time_series)
+		pred = self.d_linear(normed_time_series)
+		pred = self.normalizer.denormalize(pred)
+		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
