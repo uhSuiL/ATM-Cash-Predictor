@@ -32,7 +32,7 @@ class Normalizer:
 		return self.mean + (self.std + self.epsilon) * normed_time_series
 
 
-class MovingAverage(nn.Module):
+class SimpleMovingAverage(nn.Module):
 	def __init__(self, win_length: int, stride: int = 1):
 		super().__init__()
 		self.win_length = win_length
@@ -70,7 +70,7 @@ class DLinear(nn.Module):
 		self.W_s = nn.Parameter(init_weights)
 		self.b_s = nn.Parameter(torch.zeros(num_pred_steps, num_series))
 
-		self.moving_avg = MovingAverage(ma_win_len, ma_stride)
+		self.moving_avg = SimpleMovingAverage(ma_win_len, ma_stride)
 
 	def forward(self, X: torch.Tensor):
 		"""ATTENTION: MAKE SURE DIMENSION INCLUDES `num_series`"""
