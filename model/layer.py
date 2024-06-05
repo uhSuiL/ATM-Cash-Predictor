@@ -38,7 +38,7 @@ class SimpleMovingAverage(nn.Module):
 	def __init__(self, win_length: int):
 		super().__init__()
 		self.win_length = win_length
-		self.moving_avg = nn.AvgPool1d(kernel_size=win_length)
+		self.moving_avg = nn.AvgPool1d(kernel_size=win_length, stride=1)
 
 	def forward(self, X: torch.Tensor):  # (batch_size, num_steps, num_features)
 		if X.dim() == 2:  # (num_steps, num_features)
@@ -68,7 +68,7 @@ class WeightedMovingAverage(nn.Module):
 
 		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
 		X_smooth = torch.concat([
-			X[:, :, :self.win_length],
+			X[:, :, :self.win_length - 1],
 			self.moving_avg(X)
 		], dim=-1)  # (batch_size, num_features, num_steps)
 
@@ -82,8 +82,8 @@ class UltimateSmoother(nn.Module):
 		super().__init__()
 		self.period = torch.tensor(period, dtype=torch.float)  # (1,) | (num_features,)
 
-		if train_period:
-			self.period = nn.Parameter(self.period)
+		# if train_period:  # CAN'T USE !!!
+		# 	self.period = nn.Parameter(self.period)
 
 	def forward(self, X):  # (batch_size, num_steps, num_features)
 		a1 = torch.exp(-sqrt(2) * pi / self.period)
@@ -113,9 +113,8 @@ class UltimateSmoother(nn.Module):
 class DLinear(nn.Module):
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
-				 ma_win_len: int, MovingAverage: nn.Module = None):
+				 moving_avg: nn.Module = None):
 		super().__init__()
-		MovingAverage = SimpleMovingAverage if MovingAverage is None else MovingAverage
 		self.is_individual = is_individual
 
 		init_w_shape = (num_series, num_pred_steps, num_steps) if is_individual else (num_pred_steps, num_steps)
@@ -127,7 +126,7 @@ class DLinear(nn.Module):
 		self.W_s = nn.Parameter(init_weights)
 		self.b_s = nn.Parameter(torch.zeros(num_pred_steps, num_series))
 
-		self.moving_avg = MovingAverage(ma_win_len)
+		self.moving_avg = moving_avg
 
 	def forward(self, X: torch.Tensor):
 		"""ATTENTION: MAKE SURE DIMENSION INCLUDES `num_series`"""
