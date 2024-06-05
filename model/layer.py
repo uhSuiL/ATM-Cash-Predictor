@@ -113,8 +113,9 @@ class UltimateSmoother(nn.Module):
 class DLinear(nn.Module):
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
-				 ma_win_len: int):
+				 ma_win_len: int, MovingAverage: nn.Module = None):
 		super().__init__()
+		MovingAverage = SimpleMovingAverage if MovingAverage is None else MovingAverage
 		self.is_individual = is_individual
 
 		init_w_shape = (num_series, num_pred_steps, num_steps) if is_individual else (num_pred_steps, num_steps)
@@ -126,7 +127,7 @@ class DLinear(nn.Module):
 		self.W_s = nn.Parameter(init_weights)
 		self.b_s = nn.Parameter(torch.zeros(num_pred_steps, num_series))
 
-		self.moving_avg = SimpleMovingAverage(ma_win_len)
+		self.moving_avg = MovingAverage(ma_win_len)
 
 	def forward(self, X: torch.Tensor):
 		"""ATTENTION: MAKE SURE DIMENSION INCLUDES `num_series`"""
