@@ -67,14 +67,12 @@ class StrategicGRU(nn.Module):
 
 
 class DLinear(nn.Module):
-	def __init__(self,
-				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
-				 ma_win_len: int, ma_stride: int = 1):
+	def __init__(self, is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int, ma_win_len: int):
 		super().__init__()
 		self.num_pred_steps = num_pred_steps
 
 		self.normalizer = layer.Normalizer()
-		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, ma_win_len, ma_stride)
+		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, ma_win_len)
 
 	def forward(self, time_series: torch.Tensor):
 		normed_time_series = self.normalizer.normalize(time_series)

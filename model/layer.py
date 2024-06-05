@@ -35,10 +35,10 @@ class Normalizer:
 
 
 class SimpleMovingAverage(nn.Module):
-	def __init__(self, win_length: int, stride: int = 1):
+	def __init__(self, win_length: int):
 		super().__init__()
 		self.win_length = win_length
-		self.moving_avg = nn.AvgPool1d(kernel_size=win_length, stride=stride)
+		self.moving_avg = nn.AvgPool1d(kernel_size=win_length)
 
 	def forward(self, X: torch.Tensor):  # (batch_size, num_steps, num_features)
 		if X.dim() == 2:  # (num_steps, num_features)
@@ -113,7 +113,7 @@ class UltimateSmoother(nn.Module):
 class DLinear(nn.Module):
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
-				 ma_win_len: int, ma_stride: int = 1):
+				 ma_win_len: int):
 		super().__init__()
 		self.is_individual = is_individual
 
@@ -126,7 +126,7 @@ class DLinear(nn.Module):
 		self.W_s = nn.Parameter(init_weights)
 		self.b_s = nn.Parameter(torch.zeros(num_pred_steps, num_series))
 
-		self.moving_avg = SimpleMovingAverage(ma_win_len, ma_stride)
+		self.moving_avg = SimpleMovingAverage(ma_win_len)
 
 	def forward(self, X: torch.Tensor):
 		"""ATTENTION: MAKE SURE DIMENSION INCLUDES `num_series`"""
