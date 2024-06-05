@@ -1,3 +1,5 @@
+from math import sqrt, pi
+
 import torch
 from torch import nn
 
@@ -52,6 +54,60 @@ class SimpleMovingAverage(nn.Module):
 
 		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
 		return X
+
+
+class WeightedMovingAverage(nn.Module):
+	def __init__(self, win_length: int, num_features: int):
+		super().__init__()
+		self.win_length = win_length
+		self.moving_avg = nn.Conv1d(in_channels=num_features, out_channels=num_features, kernel_size=win_length)
+
+	def forward(self, X: torch.Tensor):  # (batch_size, num_steps, num_features)
+		if X.dim() == 2:  # (num_steps, num_features)
+			X = torch.unsqueeze(X, dim=0)  # (1, num_steps, num_features)
+
+		X = X.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
+		X_smooth = torch.concat([
+			X[:, :, :self.win_length],
+			self.moving_avg(X)
+		], dim=-1)  # (batch_size, num_features, num_steps)
+
+		X_smooth = X_smooth.permute(0, 2, 1)  # (batch_size, num_features, num_steps)
+		return X_smooth
+
+
+class UltimateSmoother(nn.Module):
+	"""refer: https://www.mesasoftware.com/papers/UltimateSmoother.pdf"""
+	def __init__(self, period: int | list, train_period: bool):
+		super().__init__()
+		self.period = torch.tensor(period, dtype=torch.float)  # (1,) | (num_features,)
+
+		if train_period:
+			self.period = nn.Parameter(self.period)
+
+	def forward(self, X):  # (batch_size, num_steps, num_features)
+		a1 = torch.exp(-sqrt(2) * pi / self.period)
+		c3 = - a1 ** 2
+		c2 = -2 * a1 * torch.cos(sqrt(2) * 180 / self.period)
+		c1 = (1 + c2 - c3) / 4
+
+		if X.dim() == 2:  # (num_steps, num_features)
+			X = torch.unsqueeze(X, dim=0)  # (1, num_steps, num_features)
+
+		X = X.permute(1, 0, 2)  # (num_steps, batch_size, num_features)
+
+		X_smooth = X.clone()
+		for t in range(X.shape[0])[2:]:
+			X_smooth[t] = (
+					(1 - c1) * X[t]
+					+ (2 * c1 - c2) * X[t - 1]
+					- (c1 + c3) * X[t - 2]
+					+ c2 * X_smooth[t - 1]
+					+ c3 * X_smooth[t - 2]
+			)
+
+		X_smooth = X_smooth.permute(1, 0, 2)  # (batch_size, num_steps, num_features)
+		return X_smooth
 
 
 class DLinear(nn.Module):
