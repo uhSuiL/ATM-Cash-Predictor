@@ -1,5 +1,7 @@
 from math import sqrt, pi
 
+import numpy as np
+
 import torch
 from torch import nn
 
@@ -108,6 +110,26 @@ class UltimateSmoother(nn.Module):
 
 		X_smooth = X_smooth.permute(1, 0, 2)  # (batch_size, num_steps, num_features)
 		return X_smooth
+
+
+def ultimate_smooth(X: np.ndarray, period: int = 20, auto_fill: bool = False):
+	# X shape: (T, )
+	a1 = np.exp(-sqrt(2) * pi / period)
+	c3 = -a1 ** 2
+	c2 = -2 * a1 * np.cos(sqrt(2) * 180 / period)
+	c1 = (1 + c2 - c3) / 4
+
+	X_smooth = X.copy()
+	for t in range(X.shape[0])[3:]:
+		X_smooth[t] = (
+				(1 - c1) * X[t - 1]
+				+ (2 * c1 - c2) * X[t - 2]
+				- (c1 + c3) * X[t - 3]
+				+ c2 * X_smooth[t - 1]
+				+ c3 * X_smooth[t - 2]
+		)
+
+	return X_smooth if auto_fill else X_smooth[3:]
 
 
 class DLinear(nn.Module):
