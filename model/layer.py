@@ -99,11 +99,11 @@ class UltimateSmoother(nn.Module):
 		X = X.permute(1, 0, 2)  # (num_steps, batch_size, num_features)
 
 		X_smooth = X.clone()
-		for t in range(X.shape[0])[2:]:
+		for t in range(X.shape[0])[3:]:
 			X_smooth[t] = (
-					(1 - c1) * X[t]
-					+ (2 * c1 - c2) * X[t - 1]
-					- (c1 + c3) * X[t - 2]
+					(1 - c1) * X[t - 1]
+					+ (2 * c1 - c2) * X[t - 2]
+					- (c1 + c3) * X[t - 3]
 					+ c2 * X_smooth[t - 1]
 					+ c3 * X_smooth[t - 2]
 			)
