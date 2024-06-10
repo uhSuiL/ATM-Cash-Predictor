@@ -25,3 +25,13 @@ class SlidingWinDataset(Dataset):
 	def __len__(self):
 		assert len(self.windows) == len(self.labels), f'{len(self.windows), len(self.labels)}'
 		return len(self.windows)
+
+
+def get_period_dummies(time_len: int, period_list: list[int], phase: int = 0) -> pd.DataFrame:
+	period_dummies = []
+	for p in period_list:
+		ticks = [(t + phase) % p for t in range(time_len)]
+		dummies = pd.get_dummies(ticks, prefix=f'period_{p}')
+		assert dummies.shape[-1] == p, f'{dummies.shape} != {p}'
+		period_dummies.append(dummies)
+	return pd.concat(period_dummies, axis=1)

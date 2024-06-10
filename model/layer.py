@@ -132,6 +132,58 @@ def ultimate_smooth(X: np.ndarray, period: int = 20, auto_fill: bool = False):
 	return X_smooth if auto_fill else X_smooth[3:]
 
 
+# input_size, hidden_size, num_layers = 10, 20, 2
+# batch_size = 5
+# input = torch.randn(batch_size, 3, input_size)  # (batch_size, num_steps, input_size)
+# rnn = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
+# h0 = torch.randn(num_layers, batch_size, 20)
+# output, hn = rnn(input, h0)
+class GRUPro(nn.Module):
+	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True):
+		super().__init__()
+
+		self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_layer, batch_first=True)
+		self.fc = nn.Linear(hidden_dim, output_dim)
+		self.h0_fc = nn.Linear(hidden_dim, hidden_dim) if train_h0 else nn.Identity()
+
+	def forward(self, time_series: torch.Tensor, h0: torch.tensor):
+		h0 = self.h0_fc(h0)  # (num_layers, batch_size, hidden_dim)
+
+		output, hn = self.gru(time_series, h0)
+
+		# output the last pred
+		if len(output.shape) == 3:  # (batch_size, num_steps, hidden_dim)
+			output = torch.unsqueeze(output[:, -1, :], dim=1)
+		elif len(output.shape) == 2:  # (num_steps, hidden_dim)
+			output = torch.unsqueeze(output[-1, :], dim=0)
+		else:
+			raise RuntimeError(f"Shape Illegal: {output.shape}")
+
+		pred = self.fc(output)
+		# return torch.squeeze(pred)
+		return pred
+
+
+class Time2Vec(nn.Module):
+	def __init__(self, embed_dim: int, activation_fn = None):
+		super().__init__()
+
+		self.f = torch.sin if activation_fn is None else activation_fn
+		self.omg = nn.Parameter(torch.randn(1, embed_dim))
+		self.phi = nn.Parameter(torch.randn(embed_dim))
+
+	def forward(self, time_ticks: torch.Tensor):  # shape: ([batch_size], time_len, 1)
+		if time_ticks.dim() == 2:
+			time_ticks = torch.unsqueeze(time_ticks, dim=0)
+
+		time_embed = time_ticks @ self.omg + self.phi  # (batch_size, time_len, embed_dim)
+		time_embed = torch.concat([
+			time_embed[:, :, :1],
+			self.f(time_embed[:, :, 1:])
+		], dim=-1)
+		return time_embed  # .squeeze(dim=0)  # ([batch_size], time_len, embed_dim)
+
+
 class DLinear(nn.Module):
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,

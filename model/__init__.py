@@ -39,6 +39,62 @@ class SimpleGRU(nn.Module):
 		return torch.squeeze(pred)
 
 
+class TimeGRU(nn.Module):
+	def __init__(self,
+				 input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True,
+				 time_embed: nn.Module = None):
+		super().__init__()
+		self.time_embed = nn.Identity() if time_embed is None else time_embed
+
+		self.gru = layer.GRUPro(input_dim, hidden_dim, output_dim, num_layer, train_h0)
+		self.normalizer = layer.Normalizer()
+
+	def forward(self, X, time_embedding, h0):
+		time_embedding = self.time_embed(time_embedding)
+		X = self.normalizer.normalize(X)
+
+		X = torch.concat([
+			X,
+			time_embedding
+		], dim=-1)
+
+		pred = self.gru(X, h0)
+		pred = self.normalizer.denormalize(pred)
+		return torch.squeeze(pred)
+
+
+class Time2VecGRU(nn.Module):
+	def __init__(self,
+				 input_dim: int, hidden_dim: int, output_dim: int, pred_embed_dim: int, time_embed_dim: int,
+				 num_layer: int = 1, train_h0: bool = True, t2v_act_fn = None):
+		super().__init__()
+
+		self.normalizer = layer.Normalizer()
+		self.gru = nn.GRU(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_layer, batch_first=True)
+		self.h0_fc = nn.Linear(hidden_dim, hidden_dim) if train_h0 else nn.Identity()
+
+		self.t2v = layer.Time2Vec(time_embed_dim, t2v_act_fn)
+		self.fc = nn.Linear(hidden_dim + time_embed_dim, output_dim)
+
+	def forward(self, X, time_ticks, h0):
+		if X.dim() == 2:  # set `batch_size=1`
+			X, time_ticks = X.unsqueeze(dim=0), time_ticks.unsqueeze(dim=0)
+
+		X = self.normalizer.normalize(X)
+		h0 = self.h0_fc(h0)
+
+		output, _ = self.gru(X, h0)  # (batch_size, num_steps, hidden_dim)
+		time_embed = self.t2v(time_ticks)  # (batch_size, num_steps, time_embed_dim)
+		preds = torch.concat([
+			output,
+			time_embed,
+		], dim=-1)   # (batch_size, num_steps, output_dim)
+		pred = self.fc(preds[:, -1:, :])
+
+		pred = self.normalizer.denormalize(pred)
+		return torch.squeeze(pred, dim=0).squeeze()
+
+
 class StrategicGRU(nn.Module):
 	def __init__(
 			self,
@@ -67,12 +123,14 @@ class StrategicGRU(nn.Module):
 
 
 class DLinear(nn.Module):
-	def __init__(self, is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int, ma_win_len: int):
+	def __init__(self,
+				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
+				 moving_avg: nn.Module = None):
 		super().__init__()
 		self.num_pred_steps = num_pred_steps
 
 		self.normalizer = layer.Normalizer()
-		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, ma_win_len)
+		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, moving_avg)
 
 	def forward(self, time_series: torch.Tensor):
 		normed_time_series = self.normalizer.normalize(time_series)
