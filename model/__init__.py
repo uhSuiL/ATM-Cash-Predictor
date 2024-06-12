@@ -125,15 +125,19 @@ class StrategicGRU(nn.Module):
 class DLinear(nn.Module):
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
-				 moving_avg: nn.Module = None):
+				 moving_avg: nn.Module = None,
+				 num_exo_t_vars: int = 0, num_exo_s_vars: int = 0):
 		super().__init__()
 		self.num_pred_steps = num_pred_steps
 
 		self.normalizer = layer.Normalizer()
-		self.d_linear = layer.DLinear(is_individual, num_series, num_steps, num_pred_steps, moving_avg)
+		self.d_linear = layer.DLinear(
+			is_individual, num_series, num_steps, num_pred_steps,
+			moving_avg,
+			num_exo_t_vars, num_exo_s_vars)
 
-	def forward(self, time_series: torch.Tensor):
+	def forward(self, time_series: torch.Tensor, exo_t_vars: torch.Tensor = None, exo_s_vars: torch.Tensor = None):
 		normed_time_series = self.normalizer.normalize(time_series)
-		pred = self.d_linear(normed_time_series)
+		pred = self.d_linear(normed_time_series, exo_t_vars, exo_s_vars)
 		pred = self.normalizer.denormalize(pred)
 		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
