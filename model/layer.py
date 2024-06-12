@@ -37,6 +37,8 @@ class Normalizer:
 
 
 class SimpleMovingAverage(nn.Module):
+	name = 'SMA'
+	
 	def __init__(self, win_length: int):
 		super().__init__()
 		self.win_length = win_length
@@ -59,6 +61,8 @@ class SimpleMovingAverage(nn.Module):
 
 
 class WeightedMovingAverage(nn.Module):
+	name = 'WMA'
+	
 	def __init__(self, win_length: int, num_features: int):
 		super().__init__()
 		self.win_length = win_length
@@ -80,6 +84,8 @@ class WeightedMovingAverage(nn.Module):
 
 class UltimateSmoother(nn.Module):
 	"""refer: https://www.mesasoftware.com/papers/UltimateSmoother.pdf"""
+	name = 'UMA'
+	
 	def __init__(self, period: int | list, train_period: bool):
 		super().__init__()
 		self.period = torch.tensor(period, dtype=torch.float)  # (1,) | (num_features,)
@@ -164,29 +170,31 @@ class GRUPro(nn.Module):
 		return pred
 
 
-class Time2Vec(nn.Module):  # TODO: add `num_series`
-	def __init__(self, embed_dim: int, num_series: int, activation_fn = None):
+class Time2Vec(nn.Module):
+	def __init__(self, embed_dim: int, num_series: int, activation_fn = None, keep_dim_series: bool = False):
 		super().__init__()
 
 		self.f = torch.sin if activation_fn is None else activation_fn
 		self.omg = nn.Parameter(torch.randn(1, embed_dim * num_series))
 		self.phi = nn.Parameter(torch.randn(num_series, embed_dim))
-		self.num_series = num_series
 
-	def forward(self, time_ticks: torch.Tensor):  # shape: ([batch_size], time_len, 1)
-		"""ATTENTION: KEEP THE LAST DIM `1`"""
+		self.num_series = num_series
+		self.keep_dim_series = keep_dim_series
+
+	def forward(self, time_ticks: torch.Tensor):  # shape: ([batch_size], num_steps, 1)
+		assert time_ticks.shape[-1] == 1, """ATTENTION: KEEP THE LAST DIM `1`"""
 		if time_ticks.dim() == 2:
 			time_ticks = torch.unsqueeze(time_ticks, dim=0)
 
-		time_embed = time_ticks @ self.omg  # (batch_size, time_len, embed_dim*num_series)
+		time_embed = time_ticks @ self.omg  # (batch_size, num_steps, embed_dim*num_series)
 		time_embed = time_embed.reshape(
-			*time_embed.shape[:2], self.num_series, -1)  # (batch_size, time_len, num_series, embed_dim)
+			*time_embed.shape[:2], self.num_series, -1)  # (batch_size, num_steps, num_series, embed_dim)
 		time_embed += self.phi
 		time_embed = torch.concat([
 			time_embed[:, :, :, :1],
 			self.f(time_embed[:, :, :, 1:])
 		], dim=-1)
-		return time_embed.squeeze(dim=-2)  # .squeeze(dim=0)  # ([batch_size], time_len, [num_series], embed_dim)
+		return time_embed if self.keep_dim_series else time_embed.squeeze(dim=-2)  # .squeeze(dim=0)  # ([batch_size], num_steps, [num_series], embed_dim)
 
 
 class DLinear(nn.Module):
