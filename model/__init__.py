@@ -170,3 +170,43 @@ class Time2VecDLinear(nn.Module):
 		pred = self.d_linear(normed_time_series, trend_embedding, season_embedding)
 		pred = self.normalizer.denormalize(pred)
 		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
+
+
+class Time2VecDLinear_2(nn.Module):
+	def __init__(self,
+				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
+				 time_embed_dim: int,
+				 # fc_hidden_dims: list,
+				 moving_avg: nn.Module = None):
+		super().__init__()
+		self.num_pred_steps = num_pred_steps
+
+		self.normalizer = layer.Normalizer()
+
+		self.time_embed = layer.Time2Vec(time_embed_dim, num_series, keep_dim_series=True)
+		self.time_proj1 = nn.Linear(time_embed_dim, 1)
+		self.time_proj2 = nn.Linear(num_steps, num_pred_steps)
+
+		# self.fc = layer.MLP([1 + time_embed_dim] + fc_hidden_dims + [num_pred_steps])
+		self.d_linear = layer.DLinear(
+			is_individual, num_series, num_steps, num_pred_steps,
+			moving_avg,
+			0, 0)
+
+	def forward(self, time_series: torch.Tensor, time_ticks: torch.Tensor):
+		"""
+		:param time_series: ([batch_size], num_steps, num_series])
+		:param time_ticks: ([batch_size], num_steps, 1)
+		"""
+		normed_time_series = self.normalizer.normalize(time_series)
+
+		time_embedding = self.time_embed(time_ticks)  # (batch_size, num_steps, num_series, embed_dim)
+		time_embedding = self.time_proj1(time_embedding) \
+			.squeeze(dim=-1).transpose(-1, -2)  # (batch_size, num_series, num_steps)
+		time_embedding = self.time_proj2(time_embedding) \
+			.transpose(-1, -2)  # (batch_size, num_pred_steps, num_series)
+
+		pred = self.d_linear(normed_time_series)  # (batch_size, num_pred_steps, num_series)
+		pred += time_embedding
+		pred = self.normalizer.denormalize(pred)
+		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
