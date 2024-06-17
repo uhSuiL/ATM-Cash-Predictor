@@ -29,13 +29,13 @@ def train(
 	info['是否开启循环'] = info['是否开启循环'].map({'是': 1, '否': 0})
 
 	train_data = pd.concat([
-		train_data[COUNTER_NUM],
+		train_data[COUNTER_NUM].reset_index(drop=True),
 		pd.Series(train_data.reset_index().index),
 		pd.DataFrame(
 			info[info['柜员号'] == COUNTER_NUM].drop('柜员号', axis=1).to_numpy().repeat(repeats=train_data.shape[0],
 																						 axis=0)
-		),
-	], axis=1)
+		).reset_index(drop=True),
+	], axis=1, ignore_index=True).reset_index(drop=True)
 
 	valid_data = train_data.iloc[-VALID_SIZE:]
 	train_data = train_data.iloc[:-VALID_SIZE]
@@ -117,8 +117,11 @@ def train(
 
 
 if __name__ == '__main__':
-	seeds = range(20)
-	counter_nums = [9012, 9003, 9049, 9025, 9053, 9077, 9207, 9200, 9164, 9008, 9039, 9049, 9622, 9472, 9490]
+	seeds = range(19, 21)
+	# counter_nums = [9012, 9003, 9049, 9025, 9053, 9077, 9207, 9164, 9008, 9039, 9200, 9472, 9490]
+	# counter_nums = [9049, 9472, 9490]
+	# counter_nums = [9049]
+	counter_nums = [9200]
 	for counter_num in counter_nums:
 		for seed in seeds:
 			print(f"Train {counter_num}, seed={seed}")

@@ -74,7 +74,6 @@ def train(
 	SAVE_DIR = f'./log/{model.name}(norm,{moving_avg.name},win={SLIDING_WIN},batch_size={BATCH_SIZE},valid_size={VALID_SIZE})/{COUNTER_NUM}/{SEED}'
 	NUM_EPOCH = 400
 
-
 	@torch.no_grad()
 	def valid(_test_loader) -> np.ndarray:
 		# results = []
@@ -93,7 +92,6 @@ def train(
 				batch_results = [loss] + batch_results
 
 			return batch_results
-
 
 	for e in range(0, NUM_EPOCH):
 		epoch_loss = []
@@ -119,8 +117,10 @@ def train(
 
 
 if __name__ == '__main__':
-	seeds = range(20)
-	counter_nums = [9012, 9003, 9049, 9025, 9053, 9077, 9207, 9200, 9164, 9008, 9039, 9049, 9622, 9472, 9490]
+	seeds = range(19, 21)
+	# counter_nums = [9012, 9003, 9049, 9025, 9053, 9077, 9207, 9164, 9008, 9039, 9049, 9472, 9490]
+	# counter_nums = [9049, 9472, 9490]
+	counter_nums = [9200]
 	for counter_num in counter_nums:
 		for seed in seeds:
 			print(f"Train {counter_num}, seed={seed}")

@@ -86,7 +86,7 @@ class UltimateSmoother(nn.Module):
 	"""refer: https://www.mesasoftware.com/papers/UltimateSmoother.pdf"""
 	name = 'UMA'
 	
-	def __init__(self, period: int | list, train_period: bool):
+	def __init__(self, period: int | list = 20, train_period: bool = False):
 		super().__init__()
 		self.period = torch.tensor(period, dtype=torch.float)  # (1,) | (num_features,)
 
@@ -230,7 +230,7 @@ class DLinear(nn.Module):
 			exo_vars = exo_vars.unsqueeze(dim=0)
 		exo_vars = exo_vars.permute(0, 2, 1, 3)  # (batch_size, num_series, num_steps, num_vars)
 		exo_vars = exo_vars.reshape(*exo_vars.shape[:2], -1, 1)  # (batch_size, num_series, num_steps*num_vars, 1)
-		return exo_vars # (batch_size, num_series, num_steps*num_vars, 1)
+		return exo_vars  # (batch_size, num_series, num_steps*num_vars, 1)
 
 	def forward(self, X: torch.Tensor, exo_t_vars: torch.Tensor = None, exo_s_vars: torch.Tensor = None):
 		"""ATTENTION: MAKE SURE DIMENSION INCLUDES `num_series`
@@ -266,3 +266,38 @@ class DLinear(nn.Module):
 
 		X_hat = (H_t + self.b_t) + (H_s + self.b_s)  # (batch_size, num_pred_steps, num_series)
 		return X_hat
+
+
+class Strategy(nn.Module):
+	def __init__(self,
+				 num_series: int,
+				 time_embed_dim: int, mlp_hidden_params: list = None, num_exo_vars: int = 0):
+		super().__init__()
+
+		input_dim = 1 + 1 + time_embed_dim + num_exo_vars  # num_pred * 2 + time_embed_dim + num_exo_vars
+		self.strategy_fc = nn.Linear(input_dim, 1) if mlp_hidden_params is None else \
+			MLP([input_dim] + mlp_hidden_params + [num_series])
+
+		self.t2v = Time2Vec(time_embed_dim, num_series, keep_dim_series=True)
+		self.time_proj1 = nn.Linear(time_embed_dim, 1)
+
+		self.relu = nn.ReLU()
+
+	def forward(self, demand, X_t, t_next, exo_vars = None):
+		"""
+		:param demand: (batch_size, num_pred_steps=1, num_series)
+		:param X_t: (batch_size, 1, num_series)
+		:param t_next: (batch_size, 1, 1)
+		:param exo_vars: (batch_size, num_series, num_vars)  !!! no `time_steps` !!!
+		"""
+		time_embed = self.t2v(t_next)  # ([batch_size], 1, num_series, embed_dim)  1=pred_steps
+		time_embed = time_embed.squeeze(dim=-3)  # ([batch_size], [num_series], embed_dim)
+
+		demand = torch.transpose(demand, -1, -2)  # (batch_size, num_series, num_pred_steps=1)
+		X_t = torch.transpose(X_t, -1, -2)  # (batch_size, num_series, num_pred_steps=1)
+
+		strategy_input = [i for i in [demand, X_t, time_embed, exo_vars] if i is not None]
+		replenish = self.strategy_fc(torch.concat(strategy_input, dim=-1))  # (batch_size, num_series, num_pred_steps=1)
+		# replenish = self.relu(replenish)
+		# return self.relu(replenish + X_t - demand)  # (batch_size, num_series, pred_steps=1)
+		return replenish + X_t - demand  # (batch_size, num_series, pred_steps=1)

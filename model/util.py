@@ -64,11 +64,15 @@ def visualize_train(log_dir: str, metrics_names: list = None, *, v_lines: list =
 	data = pd.read_csv(os.path.join(log_dir, 'train_log.csv'), header=None)
 
 	data = data.set_index(0, drop=True)  # Epoch num as index
+	data.index = data.index.rename("Epoch")
+
 	if metrics_names is None:
 		metrics_names = [f'metrics_{i}' for i in range(data.shape[-1] - 1)]
 	data.columns = ['train_loss'] + metrics_names
 
-	data.plot(figsize=(16, 8) if figsize is None else figsize)
+	print(f"start drawing figure, data shape: {data.shape}")
+
+	data.plot(figsize=(16, 8) if figsize is None else figsize, title="Training Log")
 
 	if v_lines is not None and len(v_lines) > 0:
 		for x in v_lines:
@@ -81,7 +85,48 @@ def load_checkpoint(model: nn.Module, save_dir: str, date: str, epoch: int):
 	f_path = os.path.join(save_dir, date, f'epoch_{epoch}_checkpoint.pth')
 	state_dict = torch.load(f_path)
 	model.load_state_dict(state_dict)
+	return model
 
+
+def visualize_trains(save_dir, counter, col, metric_name, date=None, start=None, end=None, is_show=True):
+	# save_dir: dir to model name: model_name(config)/counter/seed/date/train.csv
+	# train_log.csv: train_loss, valid_loss, valid_metrics
+	save_dir = os.path.join(save_dir, str(counter))
+	seeds = os.listdir(save_dir)
+	logs = []
+	for seed in seeds:
+		if date is None:
+			last_date = os.listdir(os.path.join(save_dir, seed))[-1]
+			log_path = os.path.join(save_dir, seed, last_date, 'train_log.csv')
+		else:
+			log_path = os.path.join(save_dir, seed, date, 'train_log.csv')
+
+		log = pd.read_csv(log_path, index_col=0, header=None).iloc[start: end, col].rename(metric_name)
+		if log.isna().any().any():
+			print(seed)
+		if log.shape[0] != 300:
+			...
+		logs.append(log)
+
+	df = pd.concat(logs, axis=1)
+	arr = df.to_numpy()# (num_steps, num_train)
+
+	mean = np.mean(arr, axis=-1)
+	std = np.std(arr, axis=-1)
+	x = df.index
+
+	plot_band(x, mean, mean - std, mean + std, metric_name)
+	if is_show:
+		plt.show()
+	return mean, std
+	# return mean[-1]
+
+
+def plot_band(x, main, lower, upper, title):
+	# TODO: SET DEFFERENT COLOR
+	plt.title(title)
+	plt.plot(x, main, color='orange')
+	plt.fill_between(x, lower, upper, alpha=0.5, color='skyblue')
 
 @torch.no_grad()
 def test(

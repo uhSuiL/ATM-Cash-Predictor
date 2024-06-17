@@ -12,6 +12,8 @@ from torch import nn
 # h0 = torch.randn(num_layers, batch_size, 20)
 # output, hn = rnn(input, h0)
 class SimpleGRU(nn.Module):
+	name = 'SimpleGRU'
+
 	def __init__(self, input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True):
 		super().__init__()
 
@@ -40,6 +42,8 @@ class SimpleGRU(nn.Module):
 
 
 class TimeGRU(nn.Module):
+	name = 'TimeGRU'
+
 	def __init__(self,
 				 input_dim: int, hidden_dim: int, output_dim: int, num_layer: int = 1, train_h0: bool = True,
 				 time_embed: nn.Module = None):
@@ -64,6 +68,8 @@ class TimeGRU(nn.Module):
 
 
 class Time2VecGRU(nn.Module):
+	name = 'GRU-T'
+
 	def __init__(self,
 				 input_dim: int, hidden_dim: int, output_dim: int, pred_embed_dim: int, time_embed_dim: int,
 				 num_layer: int = 1, train_h0: bool = True, t2v_act_fn = None):
@@ -123,12 +129,15 @@ class StrategicGRU(nn.Module):
 
 
 class DLinear(nn.Module):
+	name = 'DLinear'
+
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
 				 moving_avg: nn.Module = None,
-				 num_exo_t_vars: int = 0, num_exo_s_vars: int = 0):
+				 num_exo_t_vars: int = 0, num_exo_s_vars: int = 0, keep_num_pred_dim: bool = False):
 		super().__init__()
 		self.num_pred_steps = num_pred_steps
+		self.keep_num_pred_dim = keep_num_pred_dim
 
 		self.normalizer = layer.Normalizer()
 		self.d_linear = layer.DLinear(
@@ -140,10 +149,11 @@ class DLinear(nn.Module):
 		normed_time_series = self.normalizer.normalize(time_series)
 		pred = self.d_linear(normed_time_series, exo_t_vars, exo_s_vars)
 		pred = self.normalizer.denormalize(pred)
-		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
+		return pred.squeeze(dim=1) if (self.num_pred_steps == 1) and (not self.keep_num_pred_dim) else pred
 
 
 class Time2VecDLinear(nn.Module):
+	"""Deprecated"""
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
 				 trend_embed_dim: int, season_embed_dim: int,
@@ -173,13 +183,18 @@ class Time2VecDLinear(nn.Module):
 
 
 class Time2VecDLinear_2(nn.Module):
+	name = 'DLinear-T'
+
 	def __init__(self,
 				 is_individual: bool, num_series: int, num_steps: int, num_pred_steps: int,
 				 time_embed_dim: int,
-				 # fc_hidden_dims: list,
-				 moving_avg: nn.Module = None):
+				 num_exo_t_vars: int = 0, num_exo_s_vars: int = 0,
+				 moving_avg: nn.Module = None,
+				 keep_num_pred_dim: bool = False):
 		super().__init__()
 		self.num_pred_steps = num_pred_steps
+		self.num_series = num_series
+		self.keep_num_pred_dim = keep_num_pred_dim
 
 		self.normalizer = layer.Normalizer()
 
@@ -191,12 +206,14 @@ class Time2VecDLinear_2(nn.Module):
 		self.d_linear = layer.DLinear(
 			is_individual, num_series, num_steps, num_pred_steps,
 			moving_avg,
-			0, 0)
+			num_exo_t_vars, num_exo_s_vars)
 
-	def forward(self, time_series: torch.Tensor, time_ticks: torch.Tensor):
+	def forward(self, time_series: torch.Tensor, time_ticks: torch.Tensor, e_t = None, e_s = None):
 		"""
 		:param time_series: ([batch_size], num_steps, num_series])
 		:param time_ticks: ([batch_size], num_steps, 1)
+		:param e_t: ([batch_size], num_steps, num_exo_t_vars)
+		:param e_s: ([batch_size], num_steps, num_exo_s_vars)
 		"""
 		normed_time_series = self.normalizer.normalize(time_series)
 
@@ -206,7 +223,46 @@ class Time2VecDLinear_2(nn.Module):
 		time_embedding = self.time_proj2(time_embedding) \
 			.transpose(-1, -2)  # (batch_size, num_pred_steps, num_series)
 
-		pred = self.d_linear(normed_time_series)  # (batch_size, num_pred_steps, num_series)
+		pred = self.d_linear(normed_time_series, e_t, e_s)  # (batch_size, num_pred_steps, num_series)
 		pred += time_embedding
 		pred = self.normalizer.denormalize(pred)
-		return pred.squeeze(dim=1) if self.num_pred_steps == 1 else pred
+		return pred.squeeze(dim=1) if (self.num_pred_steps == 1) and (not self.keep_num_pred_dim) else pred
+
+
+class StrategicDLinear(nn.Module):
+	name = 'DLinear-Strategy'
+
+	def __init__(self, d_linear: DLinear, strategy: layer.Strategy):
+		super().__init__()
+		self.d_linear = d_linear
+		self.strategy = strategy
+
+	def forward(self, X, e_t, e_s, T_next, other_vars = None):
+		pred_demand = self.d_linear(X, e_t, e_s)
+		X_t = X[:, -1:, :]
+		return self.strategy(pred_demand, X_t, T_next, other_vars)
+
+
+class StrategicTime2VecDLinear(nn.Module):
+	name = 'DLinear-T_Strategy'
+
+	def __init__(self, t2v_d_linear: Time2VecDLinear_2, strategy: layer.Strategy, strategy_time_embed: int = None):
+		super().__init__()
+		self.t2v_d_linear = t2v_d_linear
+		self.strategy = strategy
+
+		# self.is_time_for_strategy = strategy_time_embed
+		# if strategy_time_embed is not None:
+		# 	self.t2v_strategy = layer.Time2Vec(strategy_time_embed, t2v_d_linear.num_series)
+
+	def forward(self, X, ticks, T_next, e_t, e_s, other_vars):
+		if X.dim() == 2:
+			X = X.unsqueeze(dim=0)
+
+		pred_demand = self.t2v_d_linear(X, ticks, e_t, e_s)
+		# if self.is_time_for_strategy:
+		# 	time_embed = self.t2v_d_linear(ticks)
+		# 	other_vars = torch.concat([time_embed, other_vars], dim=-1)
+
+		X_t = X[:, -1:, :]
+		return self.strategy(pred_demand, X_t, T_next, other_vars)
