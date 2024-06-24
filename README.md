@@ -8,6 +8,9 @@ Github Repo: https://github.com/uhSuiL/ATM-Cash-Predictor
 This is the `Curriculum design` for my `Machine Learning` Course in `DUFE`
 
 - Prepare: `pip install -r requirements.txt`
+- Data Preprocessing:
+  - [preprocess.ipynb](./notebook/preprocess.ipynb)
+  - [train_test_split](./notebook/train_test_split.ipynb)
 - Visualization of results: [results_vis.ipynb](./notebook/results_vis.ipynb)
 - Visualization of clustering: [clustering2_fft_with_phase.ipynb](./notebook/clustering2_fft_with_phase.ipynb)
   - other methods for clustering is also provided in `notebook`
@@ -18,7 +21,7 @@ This is the `Curriculum design` for my `Machine Learning` Course in `DUFE`
   - DLinear-T: `python DLinear_T2V.py`
   - GRU related models are also provided
 
-ATTENTION: Traing Data is PRIVATE
+ATTENTION: Training Data is PRIVATE
 
 # Structure
 
