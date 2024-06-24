@@ -18,6 +18,8 @@ This is the `Curriculum design` for my `Machine Learning` Course in `DUFE`
   - DLinear-T: `python DLinear_T2V.py`
   - GRU related models are also provided
 
+ATTENTION: Traing Data is PRIVATE
+
 # Structure
 
 - `data/`: storage for data
