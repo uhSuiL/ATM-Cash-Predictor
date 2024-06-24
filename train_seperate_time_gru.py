@@ -1,4 +1,5 @@
-from model import util, SimpleGRU
+import data
+from model import util, layer, TimeGRU
 from data import SlidingWinDataset
 
 import torch
@@ -14,8 +15,13 @@ import numpy as np
 def valid(valid_loader, model, hidden_dim, metrics, loss_fn = None) -> list:
 	for b, (X, y) in enumerate(valid_loader):
 		assert b < 1, "Only one batch is expected"
+		y = y[:, 1]
 
-		y_pred = model(X, torch.zeros(1, X.shape[0], hidden_dim, dtype=torch.float))
+		y_pred = model(
+				X=X[:, :, :1],
+				time_embedding=X[:, :, 1:],
+				h0=torch.zeros(1, X.shape[0], hidden_dim, dtype=torch.float)
+			)
 		batch_results = [metrics_fn(y, y_pred).item() for metrics_fn in metrics]
 
 		if loss_fn is not None:
@@ -25,17 +31,15 @@ def valid(valid_loader, model, hidden_dim, metrics, loss_fn = None) -> list:
 		return batch_results
 
 
-def train_simple_gru(
+def train_time_gru(
 		train_data: pd.DataFrame,
 		SLIDING_WIN = 10,
 		BATCH_SIZE = 8,
 		SHUFFLE = True,
 		NUM_EPOCH = 1000,
 		train_h0: bool = True,
-		save_dir: str = './log/SimpleGRU',
+		save_dir: str = './log/TimeGRU',
 ):
-	# train_data = pd.read_csv('./data/13series_time_stacked_cash/train.csv').drop(['日期'], axis=1).astype(float)
-
 	valid_data = train_data.iloc[-20:, :]
 	train_data = train_data.iloc[:-20, :]
 
@@ -48,13 +52,13 @@ def train_simple_gru(
 	valid_loader = DataLoader(valid_set, batch_size=len(valid_set), shuffle=False)
 
 	HIDDEN_DIM = 10
-	model = SimpleGRU(
+	model = TimeGRU(
 		input_dim=INPUT_DIM,
 		hidden_dim=HIDDEN_DIM,
-		output_dim=INPUT_DIM,
+		output_dim=1,
 		train_h0=True
 	)
-	optimizer = torch.optim.Adam(model.parameters())
+	optimizer = torch.optim.Adam(model.parameters(), lr=4e-3)
 	loss_fn = nn.MSELoss()
 	metrics = [l1_loss]
 
@@ -63,9 +67,16 @@ def train_simple_gru(
 	for e in range(0, NUM_EPOCH):
 		epoch_loss = []
 		for b, (X, y) in enumerate(train_loader):
-			y_pred = model(X, torch.zeros(1, X.shape[0], HIDDEN_DIM, dtype=torch.float))
+			y = y[:, 1]
 
-			loss = loss_fn(y_pred, y)
+			y_pred = model(
+				X=X[:, :, :1],
+				# time_embedding=X[:, :, 1:],
+				time_embedding=torch.zeros(X[:, :, 1:].shape),
+				h0=torch.zeros(1, X.shape[0], HIDDEN_DIM, dtype=torch.float)
+			)
+
+			loss = loss_fn(y_pred, y)  # the second elem is the target
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
@@ -85,4 +96,12 @@ def train_simple_gru(
 
 if __name__ == '__main__':
 	train_data = pd.read_csv('./data/13series_time_stacked_cash/train.csv').drop(['日期'], axis=1).astype(float)
-	train_simple_gru(train_data)
+	train_data.columns = [int(col.split('_')[-1]) for col in train_data.columns]
+
+	train_data = pd.concat([
+		train_data[9012],
+		pd.Series(train_data.index),
+		# data.get_period_dummies(train_data.shape[0], [2, 3], phase=0)
+	], axis=1)
+
+	train_time_gru(train_data)

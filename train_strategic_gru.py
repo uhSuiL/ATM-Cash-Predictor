@@ -1,41 +1,26 @@
-from model import util, SimpleGRU
+from train_simple_gru import valid
 from data import SlidingWinDataset
+from model import util, StrategicGRU
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torch.nn.functional import l1_loss
 
+
 import pandas as pd
 import numpy as np
 
 
-@torch.no_grad()
-def valid(valid_loader, model, hidden_dim, metrics, loss_fn = None) -> list:
-	for b, (X, y) in enumerate(valid_loader):
-		assert b < 1, "Only one batch is expected"
-
-		y_pred = model(X, torch.zeros(1, X.shape[0], hidden_dim, dtype=torch.float))
-		batch_results = [metrics_fn(y, y_pred).item() for metrics_fn in metrics]
-
-		if loss_fn is not None:
-			loss = loss_fn(y_pred, y).item()
-			batch_results = [loss] + batch_results
-
-		return batch_results
-
-
-def train_simple_gru(
+def train_strategic_gru(
 		train_data: pd.DataFrame,
 		SLIDING_WIN = 10,
-		BATCH_SIZE = 8,
+		BATCH_SIZE = 4,
 		SHUFFLE = True,
-		NUM_EPOCH = 1000,
+		NUM_EPOCH = 400,
 		train_h0: bool = True,
-		save_dir: str = './log/SimpleGRU',
+		save_dir: str = './log/StrategicGRU',
 ):
-	# train_data = pd.read_csv('./data/13series_time_stacked_cash/train.csv').drop(['日期'], axis=1).astype(float)
-
 	valid_data = train_data.iloc[-20:, :]
 	train_data = train_data.iloc[:-20, :]
 
@@ -48,11 +33,12 @@ def train_simple_gru(
 	valid_loader = DataLoader(valid_set, batch_size=len(valid_set), shuffle=False)
 
 	HIDDEN_DIM = 10
-	model = SimpleGRU(
+	model = StrategicGRU(
 		input_dim=INPUT_DIM,
 		hidden_dim=HIDDEN_DIM,
 		output_dim=INPUT_DIM,
-		train_h0=True
+		train_h0=True,
+		mlp_hidden_params=[16, 8]
 	)
 	optimizer = torch.optim.Adam(model.parameters())
 	loss_fn = nn.MSELoss()
@@ -85,4 +71,7 @@ def train_simple_gru(
 
 if __name__ == '__main__':
 	train_data = pd.read_csv('./data/13series_time_stacked_cash/train.csv').drop(['日期'], axis=1).astype(float)
-	train_simple_gru(train_data)
+	train_strategic_gru(
+		train_data,
+		save_dir='./log/Strategic(MLP)GRU'
+	)
